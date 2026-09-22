@@ -1,59 +1,43 @@
 # 3D Model Viewer — Android Screening Task
 
-A single-activity Android application built with **Kotlin** and **Google Filament** that renders, positions, resizes, and interacts with multiple 3D `.glb` models simultaneously on a single canvas.
+A single-activity Android app written in Kotlin using Google Filament to render and manipulate multiple 3D GLB models concurrently on screen.
 
----
+## Project Overview
 
-## 🚀 Key Features
+The app allows users to dynamically load 3D models onto an interactive canvas. Each model resides inside its own floating container card with two distinct gesture modes:
 
-1. **Single Activity Canvas**: Spawns and renders multiple 3D models concurrently on one full-screen interactive canvas without screens or Fragments.
-2. **5 Bundled 3D GLB Models**: Includes `Bulb`, `Fiagena`, `Lungs`, `Microscope`, and `Solar System`.
-3. **Draggable & Resizable Containers**:
-   * **1-Finger Drag**: Smoothly repositions model containers anywhere on screen.
-   * **2-Finger Pinch**: Resizes containers dynamically while scaling 3D content to fit.
-4. **Strict Dual-Mode Separation**:
-   * 🔒 **Normal Mode**: Touch gestures move/resize the container on screen.
-   * 🔄 **Interaction Mode**: Touch gestures rotate (1-finger drag) and zoom (2-finger pinch) the 3D model inside the locked container.
-5. **Always-Visible Action Controls**:
-   * 🔀 **Interaction Toggle**: Switches between Normal and Interaction modes.
-   * 🏷️ **Label Toggle**: Displays/hides dynamic 2D part labels.
-   * ❌ **Close Button**: Completely removes the model and frees hardware/GL resources instantly.
-6. **Dynamic 2D Part Labels (`extras.prop`)**:
-   * Directly parses GLB JSON headers for node `extras.prop` metadata.
-   * Projects 3D node world coordinates through Filament camera matrix to 2D screen space every frame.
-   * Renders anchored 2D label text cards connected via dynamic vector lines.
+* **Normal Mode (Container Controls)**:
+  * 1-finger drag moves the container across the screen.
+  * 2-finger pinch resizes the container bounds.
+* **Interaction Mode (3D Model Controls)**:
+  * 1-finger drag rotates the 3D model inside the locked container.
+  * 2-finger pinch zooms the 3D content scale.
+* **Control Buttons**: Each container has persistent buttons to toggle between modes, toggle 2D part labels, and close/destroy the model instance.
+* **2D Part Labels**: Reads `extras.prop` strings from the GLB header and projects 3D node world coordinates to 2D screen space every frame to draw anchored text labels and connector lines.
 
----
+## 3D Library Choice: Google Filament
 
-## 🛠️ Why Google Filament?
+I chose **Google Filament** (`com.google.android.filament`) over high-level wrappers like SceneView for several technical reasons:
 
-For this task, **Google Filament** was selected over higher-level wrappers (like SceneView):
-* **Performance on Low-End Devices (2–3 GB RAM)**: Filament is Google's C++ physically-based rendering (PBR) engine designed specifically for Android. It operates close to the GPU with minimal memory overhead.
-* **Granular VRAM/RAM Lifecycle Management**: When a model is closed, Filament allows explicit destruction of entity transforms, mesh buffers, and textures, guaranteeing zero memory leaks.
-* **Direct GLTF Node Metadata & Camera Projection**: Exposes node transforms and matrix calculations required to anchor 2D part labels to 3D world positions.
+1. **Low Memory Overhead & Performance**: Filament is Google's native C++ physically-based renderer built for mobile GPUs. It provides predictable frame rates (30+ FPS) on entry-level Android devices (2–3 GB RAM).
+2. **Explicit Resource Disposal**: Filament allows direct destruction of entities and scene nodes on disposal, preventing memory leaks when models are closed.
+3. **GLTF Extras Access**: `gltfio` allows direct node traversal and transformation matrix extraction required for projecting 2D part labels.
 
----
+## Technical Implementation & Optimizations
 
-## ⚡ Performance Optimizations Applied
+* **ViewModel State Retention**: `MainViewModel` retains active model container states (`activeModels`) across screen orientation changes.
+* **Transparent TextureView Layering**: Used `TextureView` with `isOpaque = false` for each model container so Jetpack Compose can clip, layer, and handle touch gestures over multiple floating cards without hardware surface z-index flickering.
+* **Zero-Copy Asset Loading**: Added `noCompress += "glb"` in `app/build.gradle.kts` so GLB files are memory-mapped directly from storage without RAM duplication.
+* **GLB Header Parser**: `GltfLabelParser` reads binary Chunk 0 JSON headers directly to parse `extras.prop` labels in milliseconds without needing to fully instantiate renderables beforehand.
+* **Safe Disposal Lifecycle**: Removed scene entities on `onDispose` (`scene.removeEntities`) to prevent native C++ JNI crashes (`SIGSEGV`) when closing models or rotating the screen.
 
-1. **Shared Render Loop via Choreographer**: Uses single-pass render callbacks per frame instead of redundant polling or heavy UI state updates.
-2. **Transparent TextureView Layering**: Avoids heavy multi-surface OpenGL context switching, enabling smooth Compose gesture overlays and z-ordering.
-3. **Low-Overhead GLB Header Parsing**: Directly parses binary GLB JSON chunks to extract `extras.prop` labels in milliseconds without loading the entire mesh hierarchy into memory first.
-4. **Uncompressed Asset Handling**: Configured `noCompress += "glb"` in Gradle so Filament memory-maps model assets directly from disk without buffer duplication.
+## Trade-offs & Limitations
 
----
+* **TextureView vs SurfaceView**: While `SurfaceView` has slightly lower latency on some devices, `TextureView` was required to support multiple overlapping Compose cards, rounded corners, and transparency without z-index artifacts.
+* **Lighting & Environment**: Used basic ambient lighting without heavy IBL (Image-Based Lighting) skybox textures to keep the APK size compact and save VRAM on low-end GPUs.
 
-## ⚖️ Trade-Offs & Future Improvements
+## Testing & Environment
 
-### Trade-Offs Made
-* **TextureView vs SurfaceView**: Used `TextureView` for seamless Compose z-ordering, clipping, and gesture overlays. On older GPUs, `SurfaceView` offers slightly lower latency, but `TextureView` was required for clean, non-clipping multi-container UI layering.
-
-### Improvements with More Time
-* **Shared Filament Engine Pipeline**: Implement a single global Filament `Engine` and `Renderer` driving multiple Viewports on one full-screen `SurfaceView`.
-* **Shadows & Environment Lighting**: Add custom IBL (Image Based Lighting) environment maps for enhanced PBR reflections.
-
----
-
-## 📱 Devices Tested On
-* **Android Emulator**: Pixel 7 (API 34)
-* **Target Spec**: Tested for steady 30+ FPS performance on low-end device profiles (2–3 GB RAM, Android SDK 24+).
+* **Target SDK**: 37 (Min SDK 24)
+* **Tested On**: Android Emulator / Pixel profile & low-RAM device profile (SDK 34, 2–3 GB RAM).
+* **Build Artifact**: `app/build/outputs/apk/debug/app-debug.apk`
