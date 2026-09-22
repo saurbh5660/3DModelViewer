@@ -1,4 +1,4 @@
-# 3D Model Viewer — Android Screening Task
+# 3D Model Viewer
 
 A single-activity Android app written in Kotlin using Google Filament to render and manipulate multiple 3D GLB models concurrently on screen.
 
